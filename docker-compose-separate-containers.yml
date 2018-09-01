@@ -1,15 +1,24 @@
 version: '2'
+networks:
+  net-sw-jo:
+    external:
+      name: net-sw-jo
 services:
   nginx:
     image: nginx
     container_name: nginx
     ports:
       - "80:80"
+      - "443:443"
+    networks:
+      - net-sw-jo
     volumes:
       - /etc/nginx/conf.d
 
   dockergen:
     image: jwilder/docker-gen
+    networks:
+      - net-sw-jo
     command: -notify-sighup nginx -watch /etc/docker-gen/templates/nginx.tmpl /etc/nginx/conf.d/default.conf
     volumes_from:
       - nginx
@@ -19,5 +28,7 @@ services:
 
   whoami:
     image: jwilder/whoami
+    networks:
+      - net-sw-jo
     environment:
       - VIRTUAL_HOST=whoami.local
