@@ -1,5 +1,9 @@
-![latest 0.8.0](https://img.shields.io/badge/latest-0.8.0-green.svg?style=flat)
-![nginx 1.19.3](https://img.shields.io/badge/nginx-1.19.3-brightgreen.svg) ![License MIT](https://img.shields.io/badge/license-MIT-blue.svg) [![Build Status](https://travis-ci.org/jwilder/nginx-proxy.svg?branch=master)](https://travis-ci.org/jwilder/nginx-proxy) [![](https://img.shields.io/docker/stars/jwilder/nginx-proxy.svg)](https://hub.docker.com/r/nginxproxy/nginx-proxy 'DockerHub') [![](https://img.shields.io/docker/pulls/jwilder/nginx-proxy.svg)](https://hub.docker.com/r/nginxproxy/nginx-proxy 'DockerHub')
+[![Test](https://github.com/nginx-proxy/nginx-proxy/actions/workflows/test.yml/badge.svg)](https://github.com/nginx-proxy/nginx-proxy/actions/workflows/test.yml)
+[![GitHub release](https://img.shields.io/github/v/release/nginx-proxy/nginx-proxy)](https://github.com/nginx-proxy/nginx-proxy/releases)
+![nginx 1.19.10](https://img.shields.io/badge/nginx-1.19.10-brightgreen.svg)
+[![Docker Image Size](https://img.shields.io/docker/image-size/nginxproxy/nginx-proxy?sort=semver)](https://hub.docker.com/r/nginxproxy/nginx-proxy "Click to view the image on Docker Hub")
+[![Docker stars](https://img.shields.io/docker/stars/nginxproxy/nginx-proxy.svg)](https://hub.docker.com/r/nginxproxy/nginx-proxy 'DockerHub')
+[![Docker pulls](https://img.shields.io/docker/pulls/nginxproxy/nginx-proxy.svg)](https://hub.docker.com/r/nginxproxy/nginx-proxy 'DockerHub')
 
 
 nginx-proxy sets up a container running nginx and [docker-gen][1].  docker-gen generates reverse proxy configs for nginx and reloads nginx when containers are started and stopped.
@@ -32,7 +36,7 @@ This image uses the debian:buster based nginx image.
 
 #### nginxproxy/nginx-proxy:alpine
 
-This image is based on the nginx:alpine image. Use this image to fully support HTTP/2 (including ALPN required by recent Chrome versions). A valid certificate is required as well (see eg. below "SSL Support using letsencrypt" for more info).
+This image is based on the nginx:alpine image. Use this image to fully support HTTP/2 (including ALPN required by recent Chrome versions). A valid certificate is required as well (see eg. below "SSL Support using an ACME CA" for more info).
 
     $ docker pull nginxproxy/nginx-proxy:alpine
 
@@ -51,8 +55,11 @@ services:
 
   whoami:
     image: jwilder/whoami
+    expose:
+      - "8000"
     environment:
       - VIRTUAL_HOST=whoami.local
+      - VIRTUAL_PORT=8000
 ```
 
 ```shell
@@ -67,16 +74,28 @@ You can activate the IPv6 support for the nginx-proxy container by passing the v
 
     $ docker run -d -p 80:80 -e ENABLE_IPV6=true -v /var/run/docker.sock:/tmp/docker.sock:ro nginxproxy/nginx-proxy
 
-### Multiple Ports
+#### Scoped IPv6 Resolvers
 
-If your container exposes multiple ports, nginx-proxy will default to the service running on port 80.  If you need to specify a different port, you can set a VIRTUAL_PORT env var to select a different one.  If your container only exposes one port and it has a VIRTUAL_HOST env var set, that port will be selected.
+NginX does not support scoped IPv6 resolvers. In [docker-entrypoint.sh](./docker-entrypoint.sh) the resolvers are parsed from resolv.conf, but any scoped IPv6 addreses will be removed. 
 
-  [1]: https://github.com/jwilder/docker-gen
-  [2]: http://jasonwilder.com/blog/2014/03/25/automated-nginx-reverse-proxy-for-docker/
+#### IPv6 NAT
+
+By default, docker uses IPv6-to-IPv4 NAT. This means all client connections from IPv6 addresses will show docker's internal IPv4 host address. To see true IPv6 client IP addresses, you must [enable IPv6](https://docs.docker.com/config/daemon/ipv6/) and use [ipv6nat](https://github.com/robbertkl/docker-ipv6nat). You must also disable the userland proxy by adding `"userland-proxy": false` to `/etc/docker/daemon.json` and restarting the daemon.
 
 ### Multiple Hosts
 
 If you need to support multiple virtual hosts for a container, you can separate each entry with commas.  For example, `foo.bar.com,baz.bar.com,bar.com` and each host will be setup the same.
+
+### Virtual Ports
+
+When your container exposes only one port, nginx-proxy will default to this port, else to port 80.
+
+If you need to specify a different port, you can set a `VIRTUAL_PORT` env var to select a different one. This variable cannot be set to more than one port.
+
+For each host defined into `VIRTUAL_HOST`, the associated virtual port is retrieved by order of precedence:
+1. From the `VIRTUAL_PORT` environment variable
+1. From the container's exposed port if there is only one
+1. From the default port 80 when none of the above methods apply
 
 ### Wildcard Hosts
 
@@ -111,7 +130,7 @@ allow 172.16.0.0/12;
 deny all;
 ```
 
-When internal-only access is enabled, external clients with be denied with an `HTTP 403 Forbidden`
+When internal-only access is enabled, external clients will be denied with an `HTTP 403 Forbidden`
 
 > If there is a load-balancer / reverse proxy in front of `nginx-proxy` that hides the client IP (example: AWS Application/Elastic Load Balancer), you will need to use the nginx `realip` module (already installed) to extract the client's IP from the HTTP request headers.  Please see the [nginx realip module configuration](http://nginx.org/en/docs/http/ngx_http_realip_module.html) for more details.  This configuration can be added to a new config file and mounted in `/etc/nginx/conf.d/`.
 
@@ -144,6 +163,9 @@ To set the default host for nginx use the env var `DEFAULT_HOST=foo.bar.com` for
 
     $ docker run -d -p 80:80 -e DEFAULT_HOST=foo.bar.com -v /var/run/docker.sock:/tmp/docker.sock:ro nginxproxy/nginx-proxy
 
+nginx-proxy will then redirect all requests to a container where `VIRTUAL_HOST` is set to `DEFAULT_HOST`, if they don't match any (other) `VIRTUAL_HOST`. Using the example above requests without matching `VIRTUAL_HOST` will be redirected to a plain nginx instance after running the following command:
+
+    $ docker run -d -e VIRTUAL_HOST=foo.bar.com nginx
 
 ### Separate Containers
 
@@ -160,7 +182,7 @@ $ curl -H "Host: whoami.local" localhost
 I'm 5b129ab83266
 ```
 
-To run nginx proxy as a separate container you'll need to have [nginx.tmpl](https://github.com/nginx-proxy/nginx-proxy/blob/master/nginx.tmpl) on your host system.
+To run nginx proxy as a separate container you'll need to have [nginx.tmpl](https://github.com/nginx-proxy/nginx-proxy/blob/main/nginx.tmpl) on your host system.
 
 First start nginx with a volume:
 
@@ -179,9 +201,9 @@ $ docker run --volumes-from nginx \
 Finally, start your containers with `VIRTUAL_HOST` environment variables.
 
     $ docker run -e VIRTUAL_HOST=foo.bar.com  ...
-### SSL Support using letsencrypt
+### SSL Support using an ACME CA
 
-[letsencrypt-nginx-proxy-companion](https://github.com/nginx-proxy/docker-letsencrypt-nginx-proxy-companion) is a lightweight companion container for the nginx-proxy. It allows the creation/renewal of Let's Encrypt certificates automatically.
+[acme-companion](https://github.com/nginx-proxy/acme-companion) is a lightweight companion container for the nginx-proxy. It allows the automated creation/renewal of SSL certificates using the ACME protocol.
 
 Set `DHPARAM_GENERATION` environment variable to `false` to disabled Diffie-Hellman parameters completely. This will also ignore auto-generation made by `nginx-proxy`.
 The default value is `true`
@@ -403,28 +425,52 @@ If you are using multiple hostnames for a single container (e.g. `VIRTUAL_HOST=e
 If you want most of your virtual hosts to use a default single `location` block configuration and then override on a few specific ones, add those settings to the `/etc/nginx/vhost.d/default_location` file. This file
 will be used on any virtual host which does not have a `/etc/nginx/vhost.d/{VIRTUAL_HOST}_location` file associated with it.
 
+#### Per-VIRTUAL_HOST `server_tokens` configuration
+Per virtual-host `servers_tokens` directive can be configured by passing appropriate value to the `SERVER_TOKENS` environment variable. Please see the [nginx http_core module configuration](https://nginx.org/en/docs/http/ngx_http_core_module.html#server_tokens) for more details.
+
+### Troubleshooting
+
+In case you can't access your VIRTUAL_HOST, set `DEBUG=true` in the client container's environment and have a look at the generated nginx configuration file `/etc/nginx/conf.d/default`:
+
+```
+$ docker exec <nginx-proxy-instance> cat /etc/nginx/conf.d/default
+```
+Especially at `upstream` definition blocks which should look like:
+
+```
+# foo.example.com
+upstream foo.example.com {
+	## Can be connected with "my_network" network
+	# Exposed ports: [{   <exposed_port1>  tcp } {   <exposed_port2>  tcp } ...]
+	# Default virtual port: <exposed_port|80>
+	# VIRTUAL_PORT: <VIRTUAL_PORT>
+	# foo
+	server 172.18.0.9:<Port>;
+	# Fallback entry
+	server 127.0.0.1 down;
+}
+```
+
+The effective `Port` is retrieved by order of precedence:
+1. From the `VIRTUAL_PORT` environment variable
+1. From the container's exposed port if there is only one
+1. From the default port 80 when none of the above methods apply
+
 ### Contributing
 
 Before submitting pull requests or issues, please check github to make sure an existing issue or pull request is not already open.
 
 #### Running Tests Locally
 
-To run tests, you need to prepare the docker image to test which must be tagged `nginxproxy/nginx-proxy:test`:
-
-    docker build -t nginxproxy/nginx-proxy:test .  # build the Debian variant image
-
-and call the [test/pytest.sh](test/pytest.sh) script.
-
-Then build the Alpine variant of the image:
-
-    docker build -f Dockerfile.alpine -t nginxproxy/nginx-proxy:test .  # build the Alpline variant image
-
-and call the [test/pytest.sh](test/pytest.sh) script again.
-
-
-If your system has the `make` command, you can automate those tasks by calling:
+To run tests, you just need to run the command below:
 
     make test
 
+This commands run tests on two variants of the nginx-proxy docker image: Debian and Alpine.
+
+You can run the tests for each of these images with their respective commands:
+
+    make test-debian
+    make test-alpine
 
 You can learn more about how the test suite works and how to write new tests in the [test/README.md](test/README.md) file.
