@@ -77,7 +77,7 @@ def negotiate_cipher(sut_container, additional_params='', grep='Cipher is'):
     except subprocess.CalledProcessError as e:
         # Output a more helpful error, the original exception in this case isn't that helpful.
         # `from None` to ignore undesired output from exception chaining.
-        raise Exception("Failed to process CLI request:\n" + e.stderr) from None
+        raise Exception(f"Failed to process CLI request openssl s_client -connect {host} -tls1_2 {additional_params}:\n" + e.stderr) from None
 
 
 # The default `dh_bits` can vary due to configuration.
