@@ -249,7 +249,7 @@
     {{- if exists $override }}
     include {{ $override }};
     {{- else }}
-        {{- $keepalive := first (keys (groupByLabel .Containers "com.github.nginx-proxy.nginx-proxy.keepalive")) }}
+        {{- $keepalive := coalesce (first (keys (groupByLabel .Containers "com.github.nginx-proxy.nginx-proxy.keepalive"))) "false" }}
     location {{ .Path }} {
         {{- if eq .NetworkTag "internal" }}
         # Only allow traffic from internal clients
@@ -270,7 +270,7 @@
         grpc_pass {{ trim .Proto }}://{{ trim .Upstream }};
         {{- else }}
         proxy_pass {{ trim .Proto }}://{{ trim .Upstream }}{{ trim .Dest }};
-        set $upstream_keepalive {{ if $keepalive }}true{{ else }}false{{ end }};
+        set $upstream_keepalive {{ if ne $keepalive "false" }}true{{ else }}false{{ end }};
         {{- end }}
 
         {{- if (exists (printf "/etc/nginx/htpasswd/%s" .Host)) }}
@@ -291,7 +291,7 @@
 
 {{- define "upstream" }}
 upstream {{ .Upstream }} {
-    {{- $server_found := false }}
+    {{- $active_upstream := 0 }}
     {{- $loadbalance := first (keys (groupByLabel .Containers "com.github.nginx-proxy.nginx-proxy.loadbalance")) }}
     {{- if $loadbalance }}
     # From the container's loadbalance label:
@@ -306,18 +306,22 @@ upstream {{ .Upstream }} {
         {{- template "container_port" $args }}
         {{- $port := $args.port }}
         {{- if $ip }}
-            {{- $server_found = true }}
+            {{- add1 $active_upstream }}
     server {{ $ip }}:{{ $port }};
         {{- end }}
     {{- end }}
     {{- /* nginx-proxy/nginx-proxy#1105 */}}
-    {{- if not $server_found }}
+    {{- if gt $active_upstream 0 }}
     # Fallback entry
     server 127.0.0.1 down;
     {{- end }}
-    {{- $keepalive := first (keys (groupByLabel .Containers "com.github.nginx-proxy.nginx-proxy.keepalive")) }}
-    {{- if $keepalive }}
-    keepalive {{ $keepalive }};
+    {{- $keepalive := coalesce (first (keys (groupByLabel .Containers "com.github.nginx-proxy.nginx-proxy.keepalive"))) "false" }}
+    {{- if ne $keepalive "false" }}
+        {{- if eq $keepalive "auto" }}
+        keepalive {{ mul $active_upstream 2 }};
+        {{- else }}
+        keepalive {{ $keepalive }};
+        {{- end }}
     {{- end }}
 }
 {{- end }}
