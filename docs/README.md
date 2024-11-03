@@ -578,13 +578,11 @@ _WARNING_: HSTS will force your users to visit the HTTPS version of your site fo
 
 ### Missing Certificate
 
-If no matching certificate is found for a given virtual host, nginx-proxy will:
+If no matching certificate is found for a given virtual host, nginx-proxy will configure nginx to use the default certificate (`default.crt` with `default.key`).
 
-- configure nginx to use the default certificate (`default.crt` with `default.key`),
-- force enable HTTP; i.e. `HTTPS_METHOD` will switch to `noredirect` if it was set to `nohttp` or `redirect`.
-  If this switch to HTTP is not wanted set `ENABLE_HTTP_ON_MISSING_CERT=false` (default is `true`).
-
-If the default certificate is also missing, nginx-proxy will configure nginx to reject the SSL handshake. Client browsers will render a TLS error page. As of October 2024, web browsers display the following error messages:
+If the default certificate is also missing, nginx-proxy will:
+- force enable HTTP; i.e. `HTTPS_METHOD` will switch to `noredirect` if it was set to `nohttp` or `redirect`. If this switch to HTTP is not wanted set `ENABLE_HTTP_ON_MISSING_CERT=false` (default is `true`).
+- configure nginx to reject the SSL handshake for this vhost. Client browsers will render a TLS error page. As of October 2024, web browsers display the following error messages:
 
 #### Chrome:
 
