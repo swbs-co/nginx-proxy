@@ -45,6 +45,8 @@ INTERNAL_ERR_RE = re.compile("TLSV1_UNRECOGNIZED_NAME")
     ("withdefault.yml", "https://http-only.nginx-proxy.test/", 503, None),
     ("withdefault.yml", "http://missing-cert.nginx-proxy.test/", 301, None),
     ("withdefault.yml", "https://missing-cert.nginx-proxy.test/", 200, None),
+    ("withdefault.yml", "http://missing-cert.default-untrusted.nginx-proxy.test/", 200, None),
+    ("withdefault.yml", "https://missing-cert.default-untrusted.nginx-proxy.test/", None, INTERNAL_ERR_RE),
     ("withdefault.yml", "http://unknown.nginx-proxy.test/", 503, None),
     ("withdefault.yml", "https://unknown.nginx-proxy.test/", 503, None),
     # Same as withdefault.yml, except there is no default.crt.
@@ -58,22 +60,24 @@ INTERNAL_ERR_RE = re.compile("TLSV1_UNRECOGNIZED_NAME")
     ("nodefault.yml", "https://missing-cert.nginx-proxy.test/", None, INTERNAL_ERR_RE),
     ("nodefault.yml", "http://unknown.nginx-proxy.test/", 503, None),
     ("nodefault.yml", "https://unknown.nginx-proxy.test/", None, INTERNAL_ERR_RE),
-    # HTTPS_METHOD=nohttp on nginx-proxy, no default.crt, HTTPS_METHOD unset on the app container.
+    # HTTPS_METHOD=nohttp on nginx-proxy, HTTPS_METHOD unset on the app container.
     ("nohttp.yml", "http://https-only.nginx-proxy.test/", 503, None),
     ("nohttp.yml", "https://https-only.nginx-proxy.test/", 200, None),
     ("nohttp.yml", "http://unknown.nginx-proxy.test/", 503, None),
-    ("nohttp.yml", "https://unknown.nginx-proxy.test/", None, INTERNAL_ERR_RE),
-    # HTTPS_METHOD=redirect on nginx-proxy, no default.crt, HTTPS_METHOD=nohttp on the app container.
+    ("nohttp.yml", "https://unknown.nginx-proxy.test/", 503, None),
+    # HTTPS_METHOD=redirect on nginx-proxy, HTTPS_METHOD=nohttp on the app container.
     ("nohttp-on-app.yml", "http://https-only.nginx-proxy.test/", 503, None),
     ("nohttp-on-app.yml", "https://https-only.nginx-proxy.test/", 200, None),
     ("nohttp-on-app.yml", "http://unknown.nginx-proxy.test/", 503, None),
-    ("nohttp-on-app.yml", "https://unknown.nginx-proxy.test/", None, INTERNAL_ERR_RE),
+    ("nohttp-on-app.yml", "https://unknown.nginx-proxy.test/", 503, None),
     # Same as nohttp.yml, except there is a vhost with a missing cert. This causes its
     # HTTPS_METHOD=nohttp setting to effectively become HTTPS_METHOD=noredirect.
     ("nohttp-with-missing-cert.yml", "http://https-only.nginx-proxy.test/", 503, None),
     ("nohttp-with-missing-cert.yml", "https://https-only.nginx-proxy.test/", 200, None),
-    ("nohttp-with-missing-cert.yml", "http://missing-cert.nginx-proxy.test/", 200, None),
-    ("nohttp-with-missing-cert.yml", "https://missing-cert.nginx-proxy.test/", None, INTERNAL_ERR_RE),
+    ("nohttp-with-missing-cert.yml", "http://missing-cert.nginx-proxy.test/", 301, None),
+    ("nohttp-with-missing-cert.yml", "https://missing-cert.nginx-proxy.test/", 200, None),
+    ("nohttp-with-missing-cert.yml", "http://missing-cert.default-untrusted.nginx-proxy.test/", 200, None),
+    ("nohttp-with-missing-cert.yml", "https://missing-cert.default-untrusted.nginx-proxy.test/", None, INTERNAL_ERR_RE),
     ("nohttp-with-missing-cert.yml", "http://unknown.nginx-proxy.test/", 503, None),
     ("nohttp-with-missing-cert.yml", "https://unknown.nginx-proxy.test/", None, INTERNAL_ERR_RE),
     # HTTPS_METHOD=nohttps on nginx-proxy, HTTPS_METHOD unset on the app container.
