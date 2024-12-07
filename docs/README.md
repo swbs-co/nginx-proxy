@@ -403,7 +403,7 @@ docker run --detach \
 
 ## SSL Support
 
-SSL is supported using single host, wildcard and SNI certificates using naming conventions for certificates or optionally specifying a cert name (for SNI) as an environment variable.
+SSL is supported using single host, wildcard and SAN certificates using naming conventions for certificates or optionally [specifying a cert name as an environment variable](#san-certificates).
 
 To enable SSL:
 
@@ -444,9 +444,11 @@ docker run -e DHPARAM_SKIP=true ....
 
 ### Wildcard Certificates
 
-Wildcard certificates and keys should be named after the domain name with a `.crt` and `.key` extension. For example `VIRTUAL_HOST=foo.bar.com` would use cert name `bar.com.crt` and `bar.com.key`.
+Wildcard certificates and keys should be named after the parent domain name with a `.crt` and `.key` extension. For example:
+- `VIRTUAL_HOST=foo.bar.com` would use cert name `bar.com.crt` and `bar.com.key` if `foo.bar.com.crt` and `foo.bar.com.key` are not available
+- `VIRTUAL_HOST=sub.foo.bar.com` use cert name `foo.bar.com.crt` and `foo.bar.com.key` if `sub.foo.bar.com.crt` and `sub.foo.bar.com.key` are not available, but won't use `bar.com.crt` and `bar.com.key`.
 
-### SNI
+### SAN Certificates
 
 If your certificate(s) supports multiple domain names, you can start a container with `CERT_NAME=<name>` to identify the certificate to be used. For example, a certificate for `*.foo.com` and `*.bar.com` could be named `shared.crt` and `shared.key`. A container running with `VIRTUAL_HOST=foo.bar.com` and `CERT_NAME=shared` will then use this shared cert.
 
